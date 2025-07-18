@@ -84,6 +84,7 @@ app.MapGet("invoice-report", async (InvoiceFactory invoiceFactory) =>
 
     var html = template(data);
 
+    // Could be Playwright too
     var browserFetcher = new BrowserFetcher();
     await browserFetcher.DownloadAsync();
 
