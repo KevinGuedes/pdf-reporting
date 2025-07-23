@@ -2,6 +2,7 @@ using HandlebarsDotNet;
 using HtmlToPdf;
 using PuppeteerSharp;
 using PuppeteerSharp.Media;
+using Razor.Templating.Core;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -99,6 +100,53 @@ app.MapGet("invoice-report", async (InvoiceFactory invoiceFactory) =>
 
     await page.EvaluateExpressionHandleAsync("document.fonts.ready");
 
+    var pdfData = await page.PdfDataAsync(new PdfOptions
+    {
+        HeaderTemplate =
+            """
+            <div style='font-size: 14px; text-align: center; padding: 10px;'>
+                <span style='margin-right: 20px;'><span class='title'></span></span>
+                <span><span class='date'></span></span>
+            </div>
+            """,
+        FooterTemplate =
+            """
+            <div style='font-size: 14px; text-align: center; padding: 10px;'>
+                <span style='margin-right: 20px;'>Generated on <span class='date'></span></span>
+                <span>Page <span class='pageNumber'></span> of <span class='totalPages'></span></span>
+            </div>
+            """,
+        DisplayHeaderFooter = true,
+        Format = PaperFormat.A4,
+        PrintBackground = true,
+        MarginOptions = new MarginOptions
+        {
+            Top = "50px",
+            Right = "20px",
+            Bottom = "50px",
+            Left = "20px"
+        }
+    });
+
+    return Results.File(pdfData, "application/pdf", $"invoice-{invoice.Number}.pdf");
+});
+
+
+app.MapGet("with-razor-pages", async (InvoiceFactory invoiceFactory) =>
+{
+    var invoice = invoiceFactory.Create(100);
+    var html = await RazorTemplateEngine.RenderAsync("Views/InvoiceReportRazor.cshtml", invoice);
+    var browserFetcher = new BrowserFetcher();
+    await browserFetcher.DownloadAsync();
+
+    using var browser = await Puppeteer.LaunchAsync(new LaunchOptions
+    {
+        Headless = true
+    });
+
+    using var page = await browser.NewPageAsync();
+    await page.SetContentAsync(html);
+    await page.EvaluateExpressionHandleAsync("document.fonts.ready");
     var pdfData = await page.PdfDataAsync(new PdfOptions
     {
         HeaderTemplate =
